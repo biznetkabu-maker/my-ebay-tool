@@ -6,7 +6,7 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import time
 
-# 鍵を読み込む設定
+# Google Sheets 認証
 def get_gspread_client():
     json_creds = os.environ.get("GSPREAD_SERVICE_ACCOUNT")
     creds_dict = json.loads(json_creds)
@@ -14,7 +14,7 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-# じゃんぱらで安い「保証あり品」を探す命令
+# じゃんぱらで「保証あり品」の最安価格を取得
 def check_janpara_gold(jan):
     url = f"https://www.janpara.co.jp/sale/search/result/?KEYWORDS={jan}&CHKOUTRE=ON"
     try:
@@ -41,36 +41,23 @@ def check_janpara_gold(jan):
         print(f"Error for JAN {jan}: {e}")
         return None
 
-# メインの実行処理
-def main():
-    client = get_gspread_client()
-    # スプレッドシートを開く
-    sheet = client.open_by_key(os.environ.get("SPREADSHEET_ID")).get_worksheet(0)
-    # A列のJANコードを取得
-    jan_list = sheet.col_values(1)[1:] 
-    
+# メイン処理
 def main():
     client = get_gspread_client()
     sheet = client.open_by_key(os.environ.get("SPREADSHEET_ID")).get_worksheet(0)
-
-    # ✅ JANコード一覧を取得（A列、1行目はヘッダーなので除外）
-    jan_list = sheet.col_values(1)[1:]
+    jan_list = sheet.col_values(1)[1:]  # A列のJANコード（1行目はヘッダー）
 
     for i, jan in enumerate(jan_list, start=2):
-        if not jan: continue
+        print(f"行{i}のJANコード: {jan}")
+        if not jan:
+            continue
         price = check_janpara_gold(jan)
-        print(f"JAN: {jan}, price: {price}")  # ログ出力で確認
+        print(f"JAN: {jan}, price: {price}")
         if price:
+            print("書き込み実行")
             sheet.update_cell(i, 2, price)
             sheet.update_cell(i, 3, "じゃんぱら(保証あり)")
-            time.sleep(2)# サイトへの負荷を抑えるための休憩
-for i, jan in enumerate(jan_list, start=2):
-    print(f"行{i}のJANコード: {jan}")  # JAN取得確認
-    if not jan: continue
-    price = check_janpara_gold(jan)
-    print(f"JAN: {jan}, price: {price}")  # 価格取得確認
-    if price:
-        print("書き込み実行")  # 書き込み確認
-        sheet.update_cell(i, 2, price)
-        sheet.update_cell(i, 3, "じゃんぱら(保証あり)")
-        time.sleep(2)
+            time.sleep(2)
+
+if __name__ == "__main__":
+    main()
