@@ -16,25 +16,31 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-# 1. JANコードから商品名を楽天APIで取得
+# 1. JANコードから商品名を楽天APIで取得（検索方法を強化）
 def get_product_name_by_jan(jan):
     if not RAKUTEN_APP_ID:
+        print("Error: RAKUTEN_APP_ID が設定されていません。")
         return None
-    url = f"https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?format=json&itemCode={jan}&applicationId={RAKUTEN_APP_ID}"
-    # itemCodeで直接ヒットしない場合があるので、キーワード検索も試す
-    url_keyword = f"https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?format=json&keyword={jan}&applicationId={RAKUTEN_APP_ID}"
+        
+    # 2パターンの検索を試す (1.商品コード検索  2.キーワード検索)
+    urls = [
+        f"https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?format=json&itemCode={jan}&applicationId={RAKUTEN_APP_ID}",
+        f"https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?format=json&keyword={jan}&applicationId={RAKUTEN_APP_ID}"
+    ]
     
-    try:
-        res = requests.get(url_keyword, timeout=10)
-        data = res.json()
-        if data.get("Items"):
-            # 最初に見つかった商品のタイトルを取得
-            full_name = data["Items"][0]["Item"]["itemName"]
-            # 検索しやすくするため、最初の15文字程度を抽出（または特定のキーワードで整える）
-            return full_name.split("【")[0].strip()[:20] 
-        return None
-    except:
-        return None
+    for url in urls:
+        try:
+            res = requests.get(url, timeout=10)
+            data = res.json()
+            if data.get("Items"):
+                full_name = data["Items"][0]["Item"]["itemName"]
+                # 不要な記号や長すぎる名前をカット（最初の20文字程度）
+                clean_name = full_name.replace("【", " ").replace("】", " ").replace("★", "")
+                return clean_name.strip()[:20]
+        except Exception as e:
+            print(f"楽天APIエラー: {e}")
+            continue
+    return None
 
 # 2. 取得した商品名でじゃんぱらを検索
 def check_janpara_by_name(product_name):
@@ -50,6 +56,7 @@ def check_janpara_by_name(product_name):
         
         valid_prices = []
         for item in items:
+            # 「保証なし」などの除外は一旦せず、すべての価格を拾う
             price_tag = item.select_one(".item_price, .price_detail, .price")
             if price_tag:
                 price_text = price_tag.get_text(strip=True).replace("￥", "").replace(",", "").replace("円", "")
@@ -58,17 +65,22 @@ def check_janpara_by_name(product_name):
                 except:
                     continue
         return min(valid_prices) if valid_prices else None
-    except:
+    except Exception as e:
+        print(f"じゃんぱら検索エラー: {e}")
         return None
 
 # メイン処理
 def main():
     client = get_gspread_client()
     sheet = client.open_by_key(os.environ.get("SPREADSHEET_ID")).get_worksheet(0)
-    jan_list = sheet.col_values(1)[1:] # A列のJANコード
+    jan_list = sheet.col_values(1)[1:] # A列のJANコードを取得
     
     for i, jan in enumerate(jan_list, start=2):
         print(f"--- 行{i} 処理開始 ---")
+        if not jan or len(str(jan)) < 8:
+            print(f"JANが無効です: {jan}")
+            continue
+            
         # まず商品名に変換
         product_name = get_product_name_by_jan(jan)
         print(f"JAN: {jan} -> 商品名推測: {product_name}")
@@ -79,7 +91,7 @@ def main():
         
         if price:
             sheet.update_cell(i, 2, price) # B列に価格
-            sheet.update_cell(i, 3, product_name) # C列に検索に使用した名前
+            sheet.update_cell(i, 3, f"じゃんぱら({product_name})") # C列にメモ
         
         time.sleep(3)
 
