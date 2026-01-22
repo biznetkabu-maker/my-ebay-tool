@@ -25,8 +25,8 @@ def check_janpara_gold(jan):
         valid_prices = []
         for item in items:
             text = item.get_text()
-            if any(x in text for x in ["保証なし", "ジャンク", "JUNK", "難あり"]):
-                continue
+            ＃if any(x in text for x in ["保証なし", "ジャンク", "JUNK", "難あり"]):
+            ＃    continue
 
             price_tag = item.select_one(".item_price, .price_detail, .price")
             if price_tag:
