@@ -15,7 +15,7 @@ def get_gspread_client():
     creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
     return gspread.authorize(creds)
 
-# 1. 楽天APIで商品名を取得（これは安定しているのでそのまま）
+# 1. 楽天API：エラーが出ないようシンプルに改良
 def get_product_name_by_jan(jan):
     app_id = os.environ.get("RAKUTEN_APP_ID")
     url = f"https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601?format=json&keyword={jan}&applicationId={app_id}"
@@ -24,41 +24,39 @@ def get_product_name_by_jan(jan):
         data = res.json()
         if data.get("Items"):
             name = data["Items"][0]["Item"]["itemName"]
-            return re.sub(r'[【】★（）()]', ' ', name).split()[0:3] # 最初の3単語をリストで返す
+            # 検索用の単語を抽出（記号を消して最初の2語）
+            clean_name = re.sub(r'[^\w\s]', ' ', name)
+            words = clean_name.split()
+            return words[:2]
+    except:
+        pass
+    return None
+
+# 2. じゃんぱらで価格取得
+def fetch_janpara(jan):
+    url = f"https://www.janpara.co.jp/sale/search/result/?KEYWORDS={jan}&CHKOUTRE=ON"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        prices = [int("".join(re.findall(r'\d+', p.text))) for p in soup.select(".item_price") if "品切れ" not in p.parent.text]
+        return min(prices) if prices else None
     except:
         return None
 
-# 2. じゃんぱら攻略ロジック（JAN + キーワードの波状攻撃）
-def fetch_janpara_price(jan, name_words):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-    
-    # 検索パターンの作成（1. JANコード, 2. 商品名, 3. JAN末尾数桁など）
-    search_queries = [jan]
-    if name_words:
-        search_queries.append(" ".join(name_words))
-    
-    for query in search_queries:
-        encoded = urllib.parse.quote_plus(query)
-        url = f"https://www.janpara.co.jp/sale/search/result/?KEYWORDS={encoded}&CHKOUTRE=ON"
-        
-        try:
-            res = requests.get(url, headers=headers, timeout=15)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            items = soup.select(".item_list")
-            
-            prices = []
-            for item in items:
-                if any(x in item.get_text() for x in ["品切れ", "SOLD OUT"]): continue
-                p_tag = item.select_one(".item_price, .price_detail, .price")
-                if p_tag:
-                    num = "".join(re.findall(r'\d+', p_tag.get_text()))
-                    if num: prices.append(int(num))
-            
-            if prices: return min(prices)
-        except:
-            continue
-        time.sleep(1)
-    return None
+# 3. イオシスで価格取得（追加！）
+def fetch_iosis(jan):
+    url = f"https://iosys.co.jp/items?q={jan}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        res = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        # 価格が記載されているクラスを探す
+        price_tags = soup.select(".item-list__price")
+        prices = [int("".join(re.findall(r'\d+', p.text))) for p in price_tags]
+        return min(prices) if prices else None
+    except:
+        return None
 
 def main():
     client = get_gspread_client()
@@ -68,20 +66,26 @@ def main():
     for i, jan in enumerate(jan_list, start=2):
         print(f"--- 行{i} 処理: {jan} ---")
         if not jan: continue
-            
-        name_words = get_product_name_by_jan(jan)
-        print(f"商品名推測: {' '.join(name_words) if name_words else 'NG'}")
         
-        price = fetch_janpara_price(jan, name_words)
-        print(f"最終価格: {price}")
+        # 複数サイトを回って一番安い価格を探す
+        price_janpara = fetch_janpara(jan)
+        price_iosis = fetch_iosis(jan)
         
-        if price:
-            sheet.update_cell(i, 2, price)
-            sheet.update_cell(i, 3, f"じゃんぱら取得成功")
+        # 有効な価格の中から最小値を選択
+        valid_prices = [p for p in [price_janpara, price_iosis] if p is not None]
+        final_price = min(valid_prices) if valid_prices else None
+        
+        print(f"じゃんぱら: {price_janpara}, イオシス: {price_iosis}")
+        
+        if final_price:
+            source = "じゃんぱら" if final_price == price_janpara else "イオシス"
+            sheet.update_cell(i, 2, final_price)
+            sheet.update_cell(i, 3, f"{source}から取得")
+            print(f"書き込み成功: {final_price}")
         else:
-            sheet.update_cell(i, 3, "じゃんぱら在庫なし")
+            sheet.update_cell(i, 3, "全サイト在庫なし")
         
-        time.sleep(3)
+        time.sleep(2)
 
 if __name__ == "__main__":
     main()
