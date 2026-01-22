@@ -16,7 +16,7 @@ def get_gspread_client():
 
 # じゃんぱらで「保証あり品」の最安価格を取得
 def check_janpara_gold(jan):
-    url = f"https://www.janpara.co.jp/sale/search/result/?KEYWORDS={jan}&CHKOUTRE=ON"
+    url = f"https://www.janpara.co.jp/sale/search/result/?KEYWORDS={jan}"
     try:
         res = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
