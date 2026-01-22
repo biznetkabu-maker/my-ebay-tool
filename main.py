@@ -60,4 +60,3 @@ def main():
             sheet.update_cell(i, 2, price)
             sheet.update_cell(i, 3, "じゃんぱら(保証あり)")
             time.sleep(2)# サイトへの負荷を抑えるための休憩
-print(f"JAN: {jan}, price: {price}")
