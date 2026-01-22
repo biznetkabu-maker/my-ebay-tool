@@ -28,7 +28,7 @@ def check_janpara_gold(jan):
             if any(x in text for x in ["保証なし", "ジャンク", "JUNK", "難あり"]):
                 continue
 
-            price_tag = item.select_one(".item_price")
+            price_tag = item.select_one(".item_price, .price_detail, .price")
             if price_tag:
                 price_text = price_tag.get_text(strip=True)
                 price_text = price_text.replace("¥", "").replace(",", "").replace("円", "")
