@@ -45,13 +45,18 @@ def main():
     # A列のJANコードを取得
     jan_list = sheet.col_values(1)[1:] 
     
-if __name__ == "__main__":
-    main()
-for i, jan in enumerate(jan_list, start=2):
-    if not jan: continue
-    price = check_janpara_gold(jan)
-    print(f"JAN: {jan}, price: {price}")  # ← 追加
-    if price:
-        sheet.update_cell(i, 2, price)
-        sheet.update_cell(i, 3, "じゃんぱら(保証あり)")
-time.sleep(2) # サイトへの負荷を抑えるための休憩
+def main():
+    client = get_gspread_client()
+    sheet = client.open_by_key(os.environ.get("SPREADSHEET_ID")).get_worksheet(0)
+
+    # ✅ JANコード一覧を取得（A列、1行目はヘッダーなので除外）
+    jan_list = sheet.col_values(1)[1:]
+
+    for i, jan in enumerate(jan_list, start=2):
+        if not jan: continue
+        price = check_janpara_gold(jan)
+        print(f"JAN: {jan}, price: {price}")  # ログ出力で確認
+        if price:
+            sheet.update_cell(i, 2, price)
+            sheet.update_cell(i, 3, "じゃんぱら(保証あり)")
+            time.sleep(2)# サイトへの負荷を抑えるための休憩
