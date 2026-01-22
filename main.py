@@ -35,8 +35,12 @@ def get_product_name_by_jan(jan):
             if data.get("Items"):
                 full_name = data["Items"][0]["Item"]["itemName"]
                 # 不要な記号や長すぎる名前をカット（最初の20文字程度）
-                clean_name = full_name.replace("【", " ").replace("】", " ").replace("★", "")
-                return clean_name.strip()[:20]
+               # 「中古」「★」「【】」などのノイズを徹底的に消す
+                clean_name = full_name.replace("【", " ").replace("】", " ").replace("★", "").replace("中古", "").replace("新品", "")
+                # 最初の2つか3つの単語だけを抽出して検索しやすくする
+                words = clean_name.split()
+                search_term = " ".join(words[:2]) if len(words) >= 2 else clean_name
+                return search_term.strip() 
         except Exception as e:
             print(f"楽天APIエラー: {e}")
             continue
