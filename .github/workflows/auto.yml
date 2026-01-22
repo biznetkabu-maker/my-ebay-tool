@@ -1,20 +1,9 @@
-import os
-import json
-
-def get_gspread_client():
-    json_creds = os.environ.get("GSPREAD_SERVICE_ACCOUNT")
-    print("GSPREAD_SERVICE_ACCOUNT raw:", json_creds)  # ← ここでログに出力
-
-    if not json_creds:
-        raise ValueError("GSPREAD_SERVICE_ACCOUNT is empty")
-
-    creds_dict = json.loads(json_creds)
-    # ここから gspread 認証処理へ続く
 name: Janpara Auto Research
 on:
   schedule:
-    - cron: '0 * * * *' # 毎時0分に自動実行
-  workflow_dispatch: # 手動で動かすボタンを作る
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
 jobs:
   run:
     runs-on: ubuntu-latest
