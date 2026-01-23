@@ -5,7 +5,7 @@ on:
     - cron: '0 0 * * *' # 日本時間 09:00
     - cron: '0 6 * * *' # 日本時間 15:00
     - cron: '0 12 * * *' # 日本時間 21:00
-  workflow_dispatch: # 手動実行用ボタンを表示
+  workflow_dispatch: # 手動実行ボタンを有効化
 
 jobs:
   scrape:
@@ -23,12 +23,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install httpx gspread google-auth playwright
+          # API通信用(httpx)とスプレッドシート用、ブラウザ操作用をすべてインストール
+          pip install httpx gspread google-auth playwright 
+          # Playwrightが動作するために必要なOSライブラリとブラウザ本体をインストール
+          playwright install-deps chromium
           playwright install chromium
 
       - name: Run Scraper
         env:
-          # GitHubのSettings > Secretsで設定した名前と一致させる必要があります
+          # GitHubのSettings > Secrets > Actions で登録した名前と一致させてください
           GSPREAD_SERVICE_ACCOUNT: ${{ secrets.GSPREAD_SERVICE_ACCOUNT }}
           RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
           YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
