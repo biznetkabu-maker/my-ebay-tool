@@ -17,15 +17,14 @@ async def update_spreadsheet(data_list):
     """スプレッドシートに追記する関数"""
     try:
         scope = ['https://www.googleapis.com/auth/spreadsheets']
-        # Secretに登録した鍵を読み込む
+        # 新しいSecret名「GSPREAD_SERVICE_ACCOUNT」から鍵を読み込む
         key_json = json.loads(os.environ["GSPREAD_SERVICE_ACCOUNT"])
         creds = Credentials.from_service_account_info(key_json, scopes=scope)
         client = gspread.authorize(creds)
         
-        # スプレッドシート名とタブ名（ここがシートと一致している必要があります）
+        # スプレッドシート名とタブ名（ここがシートの実物と一致している必要があります）
         sheet = client.open("Indevia.system").worksheet("02_Purchase_Control")
         
-        # スプレッドシートの形式に合わせてデータを整理
         rows = [[item['jan'], item['price'], item['shop'], item['url'], '', '', '', '', '', item['name']] for item in data_list]
         sheet.append_rows(rows)
         print(f"✅ {len(rows)}件をスプレッドシートに追記しました。")
@@ -33,7 +32,7 @@ async def update_spreadsheet(data_list):
         print(f"❌ スプレッドシート更新エラー: {e}")
 
 async def get_shop_data(page, shop_name, url, item_sel, name_sel, price_sel, keyword):
-    """各ショップからデータを取る関数"""
+    """各ショップから在庫を取得する関数"""
     await asyncio.sleep(random.uniform(2, 5)) # 紳士的な待機時間
     results = []
     try:
@@ -46,18 +45,18 @@ async def get_shop_data(page, shop_name, url, item_sel, name_sel, price_sel, key
             p_el = await item.query_selector(price_sel)
             if n_el and p_el:
                 name = (await n_el.inner_text()).strip()
-                if any(word in name for word in NG_WORDS): continue # NGワード除外
+                if any(word in name for word in NG_WORDS): continue
                 
                 price_text = await p_el.inner_text()
-                price = int(''.join(filter(str.isdigit, price_text))) # 数字だけ抽出
+                price = int(''.join(filter(str.isdigit, price_text)))
                 
                 results.append({'jan': keyword, 'price': price, 'shop': shop_name, 'url': url, 'name': name})
     except:
-        print(f"⚠️ {shop_name} で商品が見つからなかったか、エラーが発生しました。")
+        print(f"⚠️ {shop_name} で在庫なし、またはエラー")
     return results
 
 async def main():
-    # 今回検索するテスト用のJANコード
+    # 今回検索するテスト用のJANコード（iPhone 15等）
     keyword = "4549995423319" 
     
     async with async_playwright() as p:
@@ -66,15 +65,15 @@ async def main():
         page = await context.new_page()
         
         all_res = []
-        # 中古ショップを順番に調査
         print(f"--- 調査開始: {keyword} ---")
+        # じゃんぱら・ハードオフを調査
         all_res.extend(await get_shop_data(page, "じゃんぱら", f"https://www.janpara.co.jp/sale/search/detail/?KEYWORDS={keyword}", ".search_result_item", ".item_name", ".price", keyword))
         all_res.extend(await get_shop_data(page, "ハードオフ", f"https://netmall.hardoff.co.jp/search/?q={keyword}", ".p-result-card", ".p-result-card__title", ".p-result-card__price", keyword))
 
         if all_res:
             await update_spreadsheet(all_res)
         else:
-            print("対象商品がどのショップにも見つかりませんでした。")
+            print("対象商品が見つかりませんでした。")
             
         await browser.close()
 
