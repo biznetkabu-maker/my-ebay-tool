@@ -37,48 +37,4 @@ def get_gspread_client():
 
 async def update_spreadsheet(data_list):
     if not data_list:
-        print("⚠️ 書き込むデータがないためスキップします。")
-        return
-    try:
-        client = get_gspread_client()
-        sheet = client.open(SHEET_NAME).worksheet(WORKSHEET_NAME)
-        rows = [[
-            item['jan'],
-            item['price'],
-            item['shop'],
-            item['url'],
-            item.get('image', ''),
-            item.get('category', ''),
-            '', '', '', '',
-            item['name']
-        ] for item in data_list]
-        sheet.append_rows(rows)
-        print(f"✅ スプレッドシートに {len(rows)} 件書き込みました！")
-    except Exception as e:
-        print(f"❌ スプレッドシート書き込みエラー: {e}")
-
-async def fetch_rakuten(keyword):
-    app_id = os.getenv("RAKUTEN_APP_ID")
-    if not app_id:
-        return []
-    url = "https://app.rakuten.co.jp/services/api/IchibaItem/Search/20220601"
-    params = {
-        "applicationId": app_id,
-        "keyword": keyword,
-        "hits": 3,
-        "format": "json",
-        "sort": "+itemPrice"
-    }
-    async with httpx.AsyncClient() as client:
-        try:
-            res = await client.get(url, params=params)
-            if res.status_code != 200:
-                return []
-            items = res.json().get("Items", [])
-            return [{
-                "jan": i["Item"].get("janCode") or keyword,
-                "name": i["Item"]["itemName"],
-                "price": i["Item"]["itemPrice"],
-                "shop": "楽天",
-                "url": i["Item"]["itemUrl"],
-                "image": i["Item
+        print("⚠️ 書き込むデータがないためス
