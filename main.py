@@ -53,7 +53,7 @@ async def get_shop_data(page, shop_name, url, item_sel, name_sel, price_sel, key
 
 async def main():
     # 今回調査するテスト用のJANコード
-    keyword = "4549995423272" 
+    keyword = "4549995299419" 
     
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
