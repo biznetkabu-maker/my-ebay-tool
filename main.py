@@ -57,6 +57,21 @@ async def update_spreadsheet(data_list):
     except Exception as e:
         print(f"❌ スプレッドシート書き込みエラー: {e}")
 
+# --- Yahoo価格補完（Playwright） ---
+async def scrape_yahoo_price(page, url):
+    try:
+        await page.goto(url, wait_until="load", timeout=60000)
+        price_el = await page.query_selector('span[class*="Price__value"]')
+        if price_el:
+            price_text = await price_el.inner_text()
+            price_match = re.search(r"[0-9,]+", price_text)
+            if price_match:
+                return int(price_match.group(0).replace(",", ""))
+    except Exception as e:
+        print(f"❌ Yahoo価格補完エラー: {e}")
+    return None
+
+# --- 楽天 ---
 async def fetch_rakuten(keyword):
     app_id = os.getenv("RAKUTEN_APP_ID")
     if not app_id:
@@ -87,7 +102,8 @@ async def fetch_rakuten(keyword):
         except Exception:
             return []
 
-async def fetch_yahoo(keyword):
+# --- Yahoo（価格補完付き） ---
+async def fetch_yahoo(keyword, page):
     client_id = os.getenv("YAHOO_CLIENT_ID")
     if not client_id:
         return []
@@ -105,18 +121,29 @@ async def fetch_yahoo(keyword):
                 print(f"⚠️ YahooAPIエラー: Status {res.status_code}")
                 return []
             hits = res.json().get("hits", [])
-            return [{
-                "jan": h.get("jan_code") or keyword,
-                "name": h.get("name"),
-                "price": h.get("price"),
-                "shop": "Yahoo",
-                "url": h.get("url"),
-                "image": h.get("image", {}).get("medium", ""),
-                "category": h.get("category_id", "")
-            } for h in hits]
+            results = []
+            for h in hits:
+                price = h.get("price")
+                url = h.get("url")
+
+                # price==1 → 補完
+                if price == 1 and url:
+                    price = await scrape_yahoo_price(page, url)
+
+                results.append({
+                    "jan": h.get("jan_code") or keyword,
+                    "name": h.get("name"),
+                    "price": price,
+                    "shop": "Yahoo",
+                    "url": url,
+                    "image": h.get("image", {}).get("medium", ""),
+                    "category": h.get("category_id", "")
+                })
+            return results
         except Exception:
             return []
 
+# --- じゃんぱら ---
 async def fetch_janpara(page, keyword):
     results = []
     try:
@@ -147,6 +174,7 @@ async def fetch_janpara(page, keyword):
         print(f"❌ じゃんぱら取得エラー: {e}")
     return results
 
+# --- メイン ---
 async def main():
     try:
         client = get_gspread_client()
@@ -163,7 +191,7 @@ async def main():
                 print(f"🔍 '{keyword}' を検索中...")
                 all_data = []
                 all_data.extend(await fetch_rakuten(keyword))
-                all_data.extend(await fetch_yahoo(keyword))
+                all_data.extend(await fetch_yahoo(keyword, page))
                 all_data.extend(await fetch_janpara(page, keyword))
                 print(f"📊 {keyword}: {len(all_data)} 件取得")
                 await update_spreadsheet(all_data)
