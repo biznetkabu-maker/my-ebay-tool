@@ -5,7 +5,7 @@ on:
     - cron: '0 0 * * *'  # 日本時間 09:00
     - cron: '0 6 * * *'  # 日本時間 15:00
     - cron: '0 12 * * *' # 日本時間 21:00
-  workflow_dispatch: # 手動実行ボタン
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -15,10 +15,10 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: Install dependencies
         run: |
-          pip install playwright pandas gspread google-auth
+          pip install playwright gspread google-auth
           playwright install-deps chromium
           playwright install chromium
       - name: Run Scraper
