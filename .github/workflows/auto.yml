@@ -23,3 +23,9 @@ jobs:
           playwright install chromium
           pip install -r requirements.txt
           playwright install chromium
+      - name: Run script
+      env:
+        GSPREAD_SERVICE_ACCOUNT: ${{ secrets.GSPREAD_SERVICE_ACCOUNT }}
+        RAKUTEN_APP_ID: ${{ secrets.RAKUTEN_APP_ID }}
+        YAHOO_CLIENT_ID: ${{ secrets.YAHOO_CLIENT_ID }}
+      run: python main.py
